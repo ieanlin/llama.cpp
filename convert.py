@@ -49,6 +49,7 @@ DEFAULT_CONCURRENCY = 8
 
 ADDED_TOKENS_FILE = 'added_tokens.json'
 FAST_TOKENIZER_FILE = 'tokenizer.json'
+is_llama3_model = True
 
 #
 # data types
@@ -821,6 +822,9 @@ def merge_sharded(models: list[LazyModel]) -> LazyModel:
         else:
             # split by rows
             axis = 0
+        global is_llama3_model
+        if name.startswith('tok_embeddings.') and is_llama3_model:
+            axis = 0
         concatenated_shape = list(lazy_tensors[0].shape)
         concatenated_shape[axis] = sum(tensor.shape[axis] for tensor in lazy_tensors)
 
@@ -1194,6 +1198,12 @@ class OutputFile:
         tokens, scores, toktypes = self.extract_vocabulary_from_model(vocab)
 
         # Add extracted token information for model conversion
+        # Tokenizer for LLaMA 3
+        # Source: trust me bro
+        global is_llama3_model
+        if is_llama3_model:
+            self.gguf.add_tokenizer_model("gpt2")
+            self.gguf.add_tokenizer_pre("llama-bpe")
         self.gguf.add_token_list(tokens)
         self.gguf.add_token_scores(scores)
         self.gguf.add_token_types(toktypes)
@@ -1662,10 +1672,14 @@ def main(args_in: list[str] | None = None) -> None:
             }[args.outtype]
 
         logger.info(f"params = {params}")
-
-    
-    import convert_llama_weights_to_hf
-    convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
+    #TODO: add more bandaids for llama 3 detection 
+    try:
+        global is_llama3_model
+        import convert_llama_weights_to_hf
+        convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
+        is_llama3_model = True
+    except:
+        pass
 
 
     model_parent_path = model_plus.paths[0].parent
