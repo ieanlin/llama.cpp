@@ -1506,7 +1506,7 @@ class VocabFactory:
             try:
                 vocab = cls(self.path)
                 break
-            except FileNotFoundError:
+            except:
                 pass  # ignore unavailable tokenizers
         else:
             raise FileNotFoundError(f"Could not find a tokenizer matching any of {vocab_types}")
@@ -1585,7 +1585,7 @@ def main(args_in: list[str] | None = None) -> None:
     parser.add_argument("--no-vocab",     action="store_true",    help="store model without the vocab")
     parser.add_argument("--outtype",      choices=output_choices, help="output format - note: q8_0 may be very slow (default: f16 or f32 based on input)")
     parser.add_argument("--vocab-dir",    type=Path,              help="directory containing tokenizer.model, if separate from model file")
-    parser.add_argument("--vocab-type",                           help="vocab types to try in order, choose from 'spm', 'bpe', 'hfft' (default: spm,hfft)", default="spm,hfft")
+    parser.add_argument("--vocab-type",                           help="vocab types to try in order, choose from 'spm', 'bpe', 'hfft' (default: spm,hfft,bpe)", default="spm,hfft,bpe")
     parser.add_argument("--outfile",      type=Path,              help="path to write to; default: based on input")
     parser.add_argument("model",          type=Path,              help="directory containing model file, or model file itself (*.pth, *.pt, *.bin)")
     parser.add_argument("--ctx",          type=int,               help="model training context (default: based on input)")
@@ -1596,7 +1596,6 @@ def main(args_in: list[str] | None = None) -> None:
     parser.add_argument("--verbose",      action="store_true",    help="increase output verbosity")
     parser.add_argument("--metadata",     type=Path,              help="Specify the path for a metadata file")
     parser.add_argument("--get-outfile",  action="store_true",    help="get calculated default outfile name")
-
     args = parser.parse_args(args_in)
 
     if args.verbose:
@@ -1663,6 +1662,11 @@ def main(args_in: list[str] | None = None) -> None:
             }[args.outtype]
 
         logger.info(f"params = {params}")
+
+    
+    import convert_llama_weights_to_hf
+    convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
+
 
     model_parent_path = model_plus.paths[0].parent
     vocab_path = Path(args.vocab_dir or args.model or model_parent_path)
