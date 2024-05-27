@@ -49,7 +49,7 @@ DEFAULT_CONCURRENCY = 8
 
 ADDED_TOKENS_FILE = 'added_tokens.json'
 FAST_TOKENIZER_FILE = 'tokenizer.json'
-is_llama3_model = True
+is_llama3_model = False
 
 #
 # data types
@@ -1618,6 +1618,15 @@ def main(args_in: list[str] | None = None) -> None:
 
     metadata = Metadata.load(args.metadata)
 
+    #TODO: add more bandaids for llama 3 detection 
+    try:
+        global is_llama3_model
+        import convert_llama_weights_to_hf
+        convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
+        is_llama3_model = True
+    except:
+        pass
+
     if args.get_outfile:
         model_plus = load_some_model(args.model)
         params = Params.load(model_plus)
@@ -1672,14 +1681,6 @@ def main(args_in: list[str] | None = None) -> None:
             }[args.outtype]
 
         logger.info(f"params = {params}")
-    #TODO: add more bandaids for llama 3 detection 
-    try:
-        global is_llama3_model
-        import convert_llama_weights_to_hf
-        convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
-        is_llama3_model = True
-    except:
-        pass
 
 
     model_parent_path = model_plus.paths[0].parent
