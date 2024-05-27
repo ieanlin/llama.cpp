@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#Credits: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
+
 import json
 import warnings
 
@@ -138,7 +140,6 @@ class Llama3Converter(TikTokenConverter):
             model_input_names=["input_ids", "attention_mask"],
         )
 
-#Credits: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
 def write_tokenizer(tokenizer_path, input_tokenizer_path, llama_version=2):
     tokenizer_class = LlamaTokenizer if LlamaTokenizerFast is None else LlamaTokenizerFast
     if llama_version == 3:
