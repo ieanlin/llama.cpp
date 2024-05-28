@@ -2316,6 +2316,8 @@ static ggml_backend_buffer_type_t llama_default_buffer_type_offload(const llama_
     if (buft == nullptr) {
         LLAMA_LOG_WARN("%s: cannot use GPU %d, check `vulkaninfo --summary`\n", __func__, gpu);
     }
+#elif defined(GGML_USE_QNN)
+    buft = ggml_backend_qnn_buffer_type(gpu);
 #endif
 
     if (buft == nullptr) {
@@ -2358,6 +2360,8 @@ static size_t llama_get_device_count(const llama_model & model) {
     return ggml_backend_sycl_get_device_count();
 #elif defined(GGML_USE_VULKAN)
     return ggml_backend_vk_get_device_count();
+#elif defined(GGML_USE_QNN)
+    return ggml_backend_qnn_get_device_count();
 #else
     return 1;
 #endif
@@ -16079,8 +16083,8 @@ struct llama_context * llama_new_context_with_model(
 #elif defined(GGML_USE_QNN)
         if (model->n_gpu_layers > 0) {
             //the second param is data path of prebuit QNN libs provided by Qualcomm
-            //can be hardcoded to "/data/local/tmp/"
-            ggml_backend_t backend = ggml_backend_qnn_init(model->main_gpu, "/data/local/tmp/");
+            //can be hardcoded to "/data/local/tmp/" for command line application on Android device
+            ggml_backend_t backend = ggml_backend_qnn_init(model->main_gpu, "/data/data/com.cdeos.kantv/qnnlib/");
             if (nullptr == backend) {
                 LLAMA_LOG_ERROR("%s: failed to initialize QNN backend\n", __func__);
                 llama_free(ctx);
