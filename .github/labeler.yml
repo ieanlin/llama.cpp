@@ -5,7 +5,6 @@ Qualcomm QNN:
         - any-glob-to-any-file:
             - ggml-qnn.h
             - ggml-qnn.cpp
-            - README-qnn.md
             - tests/ggml-qnn/*
 Kompute:
     - changed-files:
