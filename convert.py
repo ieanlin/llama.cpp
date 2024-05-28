@@ -7,6 +7,7 @@ import concurrent.futures
 import enum
 import faulthandler
 import functools
+import hashlib
 import itertools
 import json
 import math
@@ -1630,6 +1631,11 @@ def write_llama3_tokenizer(tokenizer_path, input_tokenizer_path):
     tokenizer.save_pretrained(tokenizer_path)
     return tokenizer
 
+def is_llama3_tokenizer(tokenizer_path) -> bool:
+    llama3_tokenizer_model_hash : str = "82e9d31979e92ab929cd544440f129d9ecd797b69e327f80f17e1c50d5551b55"
+    with open(tokenizer_path, "rb") as f:
+        tokenizer_hash = hashlib.sha256(f.read()).hexdigest()
+    return llama3_tokenizer_model_hash == tokenizer_hash
 
 def main(args_in: list[str] | None = None) -> None:
     output_choices = ["f32", "f16"]
@@ -1667,12 +1673,10 @@ def main(args_in: list[str] | None = None) -> None:
     metadata = Metadata.load(args.metadata)
 
     #TODO: add more bandaids for llama 3 detection 
-    try:
+    if is_llama3_tokenizer(os.path.join(args.model, "tokenizer.model")):
         global is_llama3_model
         write_llama3_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"))
         is_llama3_model = True
-    except:
-        pass
 
     if args.get_outfile:
         model_plus = load_some_model(args.model)
