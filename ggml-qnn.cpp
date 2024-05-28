@@ -58,21 +58,6 @@
 // =================================================================================================
 class qnn_instance;
 
-//TODO: should be removed because this is a workaround method during development stage
-//a minor modification is required during development stage for validate QNN backend on Android phone:
-//
-//modify from
-//
-//static void ggml_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor)
-//
-//to
-//
-//void ggml_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor)
-//
-//in source file ggml.c#L16156
-//
-//this workaround will not be needed when the final QNN backend is complete
-extern "C" void ggml_compute_forward(struct ggml_compute_params * params, struct ggml_tensor * tensor);
 
 #if (defined __ANDROID__) || (defined ANDROID) //Qualcomm's QNN could running on Windows over ARM(aka WoA)
 extern "C" int __android_log_print(int prio, const char * tag, const char * fmt, ...)
@@ -1427,7 +1412,7 @@ static void ggml_qnn_log_internal(ggml_log_level level, const char * file, const
 #if (defined __ANDROID__) || (defined ANDROID)
             //for Android APP
             __android_log_print(level, "ggml-qnn", "%s\n", s_ggml_qnn_log_internal_buf);
-            //for Android terminal
+            //for Android command line application
             printf("%s\n", s_ggml_qnn_log_internal_buf);
 #else
             printf("%s\n", s_ggml_qnn_log_internal_buf);
@@ -3394,26 +3379,12 @@ bool ggml_qnn_compute_forward(struct ggml_compute_params * params, struct ggml_t
         return false;
     }
 
-    //this is special scenario for UT function qnn_ggml_op
-    //borrow some advantages from PyTorch:the user or the upper layer codes could specify whether a GGML OP(such as add/mul/mulmat) is accelerated by a specify backend)
-    //otherwise ggml-qnn.cpp don't known whether current caller is whisper.cpp or other scenario(for example, JNI function...)
-
-    //in the all, use_hwaccel is different with supported_op
-    //this feature is heavily depend on PR in upstream whisper.cpp https://github.com/ggerganov/whisper.cpp/pull/2073
-    use_hwaccel = (tensor->src[0]->backend == GGML_BACKEND_TYPE_GPU);
-
     supported_op = ((tensor->op == GGML_OP_ADD) || (tensor->op == GGML_OP_MUL) || (tensor->op == GGML_OP_MUL_MAT));
-    //supported_op = (tensor->op == GGML_OP_ADD); //works very good with whisper.cpp(asr result is correct)
-
-    if ((!use_hwaccel) && (!supported_op)) {
-        //TODO: should be removed because this is a workaround method during development stage
-        //ggml_compute_forward(params, tensor);
+    if (!supported_op) {
         return false;
     }
 
-    if ((!use_hwaccel) && (!ggml_qnn_can_handle_op(tensor->src[0], tensor->src[1], tensor))) {
-        //TODO: should be removed because this is a workaround method during development stage
-        //ggml_compute_forward(params, tensor);
+    if (!ggml_qnn_can_handle_op(tensor->src[0], tensor->src[1], tensor)) {
         return false;
     }
     //end sanity check
