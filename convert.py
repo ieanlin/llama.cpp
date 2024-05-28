@@ -24,6 +24,8 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from transformers import PreTrainedTokenizerFast
+from transformers.convert_slow_tokenizer import TikTokenConverter
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, IO, Iterable, Literal, Protocol, TypeVar, runtime_checkable, Optional
 
 import numpy as np
@@ -1582,6 +1584,52 @@ def do_dump_model(model_plus: ModelPlus) -> None:
     for name, lazy_tensor in model_plus.model.items():
         print(f"{name}: shape={lazy_tensor.shape} type={lazy_tensor.data_type}; {lazy_tensor.description}") # noqa: NP100
 
+# Tokenizer conversion for LLaMA 3
+# Credits: https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py
+class Llama3Converter(TikTokenConverter):
+    def __init__(self, vocab_file, num_reserved_special_tokens=256, **kwargs):
+        super().__init__(vocab_file, **kwargs)
+        tokenizer = self.converted()
+        chat_template = (
+            "{% set loop_messages = messages %}"
+            "{% for message in loop_messages %}"
+            "{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}"
+            "{% if loop.index0 == 0 %}"
+            "{% set content = bos_token + content %}"
+            "{% endif %}"
+            "{{ content }}"
+            "{% endfor %}"
+            "{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}"
+        )
+        num_reserved_special_tokens = 256
+        special_tokens = [
+            "<|begin_of_text|>",
+            "<|end_of_text|>",
+            "<|reserved_special_token_0|>",
+            "<|reserved_special_token_1|>",
+            "<|reserved_special_token_2|>",
+            "<|reserved_special_token_3|>",
+            "<|start_header_id|>",
+            "<|end_header_id|>",
+            "<|reserved_special_token_4|>",
+            "<|eot_id|>",  # end of turn
+        ] + [f"<|reserved_special_token_{i}|>" for i in range(5, num_reserved_special_tokens - 5)]
+        tokenizer.add_special_tokens(special_tokens)
+
+        self.tokenizer = PreTrainedTokenizerFast(
+            tokenizer_object=tokenizer,
+            bos_token="<|begin_of_text|>",
+            eos_token="<|end_of_text|>",
+            chat_template=chat_template,
+            model_input_names=["input_ids", "attention_mask"],
+        )
+
+def write_llama3_tokenizer(tokenizer_path, input_tokenizer_path):
+    tokenizer = Llama3Converter(input_tokenizer_path).tokenizer
+    print(f"Saving a {tokenizer.__class__.__name__} to {tokenizer_path}.")
+    tokenizer.save_pretrained(tokenizer_path)
+    return tokenizer
+
 
 def main(args_in: list[str] | None = None) -> None:
     output_choices = ["f32", "f16"]
@@ -1621,8 +1669,7 @@ def main(args_in: list[str] | None = None) -> None:
     #TODO: add more bandaids for llama 3 detection 
     try:
         global is_llama3_model
-        import convert_llama_weights_to_hf
-        convert_llama_weights_to_hf.write_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"), 3)
+        write_llama3_tokenizer(args.model, os.path.join(args.model, "tokenizer.model"))
         is_llama3_model = True
     except:
         pass
