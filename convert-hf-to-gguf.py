@@ -123,9 +123,12 @@ class Model:
         self.tensor_map = gguf.get_tensor_name_map(self.model_arch, self.block_count)
         self.tensor_names = None
         self.metadata = metadata
+
+        model_tensors = self.get_tensors()
+
         if self.ftype == gguf.LlamaFileType.GUESSED:
             # NOTE: can't use field "torch_dtype" in config.json, because some finetunes lie.
-            _, first_tensor = next(self.get_tensors())
+            _, first_tensor = next(model_tensors)
             if first_tensor.dtype == torch.float16:
                 logger.info(f"choosing --outtype f16 from first tensor type ({first_tensor.dtype})")
                 self.ftype = gguf.LlamaFileType.MOSTLY_F16
@@ -162,8 +165,35 @@ class Model:
         # Get Expert Count From huggingface_parameters
         expert_count = self.hparams["num_local_experts"] if "num_local_experts" in self.hparams else None
 
+        def per_model_weight_count_estimation(tensors, expert_count):
+            # TODO: Ensure parameter count is accurate throughout various model type
+            #       May currently overestimate parameter count in Mamba model because
+            #       output weights is tied with token embeddings.
+            sum_weight_estimate = 0
+            for name, data_torch in tensors:
+                # Got A Tensor
+
+                # We don't need these
+                if name.endswith((".attention.masked_bias", ".attention.bias", ".rotary_emb.inv_freq")):
+                    continue
+
+                # Calculate Tensor Volume
+                sum_weights_in_tensor = 1
+                for dim in data_torch.shape:
+                    sum_weights_in_tensor *= dim
+
+                # Add Tensor Volume To Running Count
+                sum_weight_estimate += sum_weights_in_tensor
+
+            # Calculate weight estimate per model
+            per_model_weight_estimate = (sum_weight_estimate / expert_count) if (expert_count > 0) else sum_weight_estimate
+
+            return per_model_weight_estimate
+
+        weight_estimate = per_model_weight_count_estimation(model_tensors, expert_count)
+
         # Generate default filename based on model specification and available metadata
-        self.fname_default = gguf.naming_convention(self.model_name, self.metadata.version, expert_count, self.parameter_count(), encodingScheme)
+        self.fname_default = gguf.naming_convention(self.model_name, self.metadata.version, expert_count, weight_estimate, encodingScheme)
 
         # Filename Output
         if fname_out is not None:
@@ -344,28 +374,6 @@ class Model:
         del name, new_name, bid, n_dims  # unused
 
         return False
-
-    def parameter_count(self):
-        # TODO: Ensure parameter count is accurate throughout various model type
-        #       May currently overestimate parameter count in Mamba model because
-        #       output weights is tied with token embeddings.
-        total_model_parameters = 0
-        for name, data_torch in self.get_tensors():
-            # Got A Tensor
-
-            # We don't need these
-            if name.endswith((".attention.masked_bias", ".attention.bias", ".rotary_emb.inv_freq")):
-                continue
-
-            # Calculate Tensor Volume
-            sum_weights_in_tensor = 1
-            for dim in data_torch.shape:
-                sum_weights_in_tensor *= dim
-
-            # Add Tensor Volume To Running Count
-            total_model_parameters += sum_weights_in_tensor
-
-        return total_model_parameters
 
     def write_tensors(self):
         max_name_len = max(len(s) for _, s in self.tensor_map.mapping.values()) + len(".weight,")
