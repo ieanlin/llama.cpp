@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 def model_weight_count_rounded_notation(model_params_count: int) -> str:
     if model_params_count > 1e15 :
         # Quadrillion Of Parameters
