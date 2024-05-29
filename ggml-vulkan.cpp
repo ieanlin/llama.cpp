@@ -1,4 +1,9 @@
 #include "ggml-vulkan.h"
+#include <limits>
+#include <map>
+#include <ostream>
+#include <string>
+#include <vulkan/vulkan_core.h>
 
 #ifdef GGML_VULKAN_RUN_TESTS
 #include <chrono>
@@ -1691,7 +1696,64 @@ void ggml_vk_instance_init() {
             vk::PhysicalDeviceProperties props = devices[i].getProperties();
 
             if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
-                vk_instance.device_indices.push_back(i);
+                // Check if there are two physical devices corresponding to the same GPU
+                auto old_device = std::find_if(
+                    vk_instance.device_indices.begin(),
+                    vk_instance.device_indices.end(),
+                    [&devices, &props](const size_t k){ return devices[k].getProperties().deviceID == props.deviceID; }
+                );
+                if (old_device == vk_instance.device_indices.end()) {
+                    vk_instance.device_indices.push_back(i);
+                } else {
+                    // There can be two physical devices corresponding to the same GPU if there are 2 different drivers
+                    // This can cause error when splitting layers aross the devices, need to keep only 1
+                    std::cout << "Device " << i << " and device " << *old_device << " have the same device id" << std::endl;
+
+                    vk::PhysicalDeviceProperties2 old_prop;
+                    vk::PhysicalDeviceDriverProperties old_driver;
+                    old_prop.pNext = &old_driver;
+                    devices[*old_device].getProperties2(&old_prop);
+                    std::string old_driver_name {old_driver.driverName.data()};
+
+                    vk::PhysicalDeviceProperties2 new_prop;
+                    vk::PhysicalDeviceDriverProperties new_driver;
+                    new_prop.pNext = &new_driver;
+                    devices[i].getProperties2(&new_prop);
+                    std::string new_driver_name {new_driver.driverName.data()};
+
+                    // Check https://vulkan.gpuinfo.org/displaycoreproperty.php?name=driverName&core=1.2 for a list of driver names
+                    // Smaller number -> higher priority
+                    std::map<std::string, int> driver_priorities {};
+                    driver_priorities["NVIDIA"] = 1;
+                    driver_priorities["nvk"] = 2;
+                    driver_priorities["radv"] = 3;
+                    driver_priorities["AMD open-source driver"] = 4;
+                    driver_priorities["AMD proprietary driver"] = 5;
+                    driver_priorities["Intel open-source Mesa driver"] = 6;
+                    driver_priorities["Intel Corporation"] = 7;
+
+                    // Select the driver based on the priority map
+                    // Keep the old one if the names are not there
+                    int old_priority = std::numeric_limits<int>::max();
+                    if (driver_priorities.count(old_driver_name)) {
+                        old_priority = driver_priorities[old_driver_name];
+                    }
+                    int new_priority = std::numeric_limits<int>::max();
+                    if (driver_priorities.count(new_driver_name)) {
+                        new_priority = driver_priorities[new_driver_name];
+                    }
+
+                    if (new_priority < old_priority) {
+                         auto r = std::remove(vk_instance.device_indices.begin(), vk_instance.device_indices.end(), *old_device);
+                         vk_instance.device_indices.erase(r, vk_instance.device_indices.end());
+                         vk_instance.device_indices.push_back(i);
+                         std::cout << "Prioritize device " << i << " driver " << new_driver_name << " over device " << *old_device << " driver " << old_driver_name << std::endl;
+                         std::cout << "Remove device " << *old_device << std::endl;
+                    } else {
+                         std::cout << "Prioritize device " << *old_device << " driver " << old_driver_name << " over device " << i << " driver " << new_driver_name << std::endl;
+                         std::cout << "Keep device " << *old_device << std::endl;
+                     }
+                }
             }
         }
 
