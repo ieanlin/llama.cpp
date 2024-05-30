@@ -1,4 +1,11 @@
 # https://github.com/actions/labeler
+
+Qualcomm QNN:
+    - changed-files:
+        - any-glob-to-any-file:
+            - ggml-qnn.h
+            - ggml-qnn.cpp
+            - tests/ggml-qnn/*
 Kompute:
     - changed-files:
         - any-glob-to-any-file:
