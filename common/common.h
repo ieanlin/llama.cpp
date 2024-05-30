@@ -87,9 +87,12 @@ struct gpt_params {
     int32_t yarn_orig_ctx         = 0;     // YaRN original context length
     float   defrag_thold          = -1.0f; // KV cache defragmentation threshold
     std::string rpc_servers       = "";    // comma separated list of RPC servers
+    std::string rpc_servers_draft = "";    // comma separated list of RPC servers used for draft model
 
     ggml_backend_sched_eval_callback cb_eval = nullptr;
     void * cb_eval_user_data                 = nullptr;
+    ggml_backend_sched_split_done_callback cb_split_done = nullptr;
+    void * cb_split_done_user_data                       = nullptr;
 
     ggml_numa_strategy numa = GGML_NUMA_STRATEGY_DISABLED;
 

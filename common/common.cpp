@@ -1071,6 +1071,14 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         params.rpc_servers = argv[i];
         return true;
     }
+    if (arg == "--rpcd") {
+        if (++i >= argc) {
+            invalid_param = true;
+            return true;
+        }
+        params.rpc_servers_draft = argv[i];
+        return true;
+    }
     if (arg == "--no-mmap") {
         params.use_mmap = false;
         return true;
@@ -2054,6 +2062,8 @@ struct llama_context_params llama_context_params_from_gpt_params(const gpt_param
     cparams.defrag_thold      = params.defrag_thold;
     cparams.cb_eval           = params.cb_eval;
     cparams.cb_eval_user_data = params.cb_eval_user_data;
+    cparams.cb_split_done     = params.cb_split_done;
+    cparams.cb_split_done_user_data = params.cb_split_done_user_data;
     cparams.offload_kqv       = !params.no_kv_offload;
     cparams.flash_attn        = params.flash_attn;
 
