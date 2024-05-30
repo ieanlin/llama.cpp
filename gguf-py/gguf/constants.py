@@ -6,17 +6,15 @@ from typing import Any
 #
 # constants
 #
-
 GGUF_MAGIC             = 0x46554747  # "GGUF"
 GGUF_VERSION           = 3
 GGUF_DEFAULT_ALIGNMENT = 32
 GGML_QUANT_VERSION     = 2  # GGML_QNT_VERSION from ggml.h
 
+
 #
 # metadata keys
 #
-
-
 class Keys:
     class General:
         ARCHITECTURE         = "general.architecture"
@@ -79,12 +77,15 @@ class Keys:
         TIME_STEP_RANK = "{arch}.ssm.time_step_rank"
 
     class Tokenizer:
-        MODEL            = "tokenizer.ggml.model"
-        PRE              = "tokenizer.ggml.pre"
+        MODEL            = "tokenizer.ggml.model"             # STRING: e.g. llama
+        TYPE             = "tokenizer.ggml.type"              # STRING: BPE, SPM, WPM, etc.
+        NORM             = "tokenizer.ggml.norm"              # OBJECT {"type": "ByteLevel"}
+        PRE              = "tokenizer.ggml.pre"               # OBJECT {"type": "ByteLevel"}
+        ADDED            = "tokenizer.ggml.added"             # ARRAY of OBJECTs {"id": 1}
         LIST             = "tokenizer.ggml.tokens"
         TOKEN_TYPE       = "tokenizer.ggml.token_type"
-        TOKEN_TYPE_COUNT = "tokenizer.ggml.token_type_count"  # for BERT-style token types
-        SCORES           = "tokenizer.ggml.scores"
+        TOKEN_TYPE_COUNT = "tokenizer.ggml.token_type_count"  # BERT token types
+        SCORES           = "tokenizer.ggml.scores"            # Word Piece Only
         MERGES           = "tokenizer.ggml.merges"
         BOS_ID           = "tokenizer.ggml.bos_token_id"
         EOS_ID           = "tokenizer.ggml.eos_token_id"
@@ -844,20 +845,10 @@ MODEL_TENSOR_SKIP: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
     ],
 }
 
+
 #
 # types
 #
-
-
-class TokenType(IntEnum):
-    NORMAL       = 1
-    UNKNOWN      = 2
-    CONTROL      = 3
-    USER_DEFINED = 4
-    UNUSED       = 5
-    BYTE         = 6
-
-
 class RopeScalingType(Enum):
     NONE   = 'none'
     LINEAR = 'linear'
@@ -945,6 +936,14 @@ class LlamaFileType(IntEnum):
     GUESSED              = 1024  # not specified in the model file
 
 
+LLAMA_FILE_TYPE_NAMES: dict[LlamaFileType, str] = {
+    LlamaFileType.ALL_F32     : "F32",
+    LlamaFileType.MOSTLY_F16  : "F16",
+    LlamaFileType.MOSTLY_BF16 : "BF16",
+    LlamaFileType.MOSTLY_Q8_0 : "Q8_0",
+}
+
+
 class GGUFEndian(IntEnum):
     LITTLE = 0
     BIG = 1
@@ -1017,6 +1016,76 @@ GGML_QUANT_SIZES: dict[GGMLQuantizationType, tuple[int, int]] = {
 }
 
 
+#
+# Tokenizer Types
+#
+class TokenType(IntEnum):
+    NORMAL       = 1
+    UNKNOWN      = 2
+    CONTROL      = 3
+    USER_DEFINED = 4
+    UNUSED       = 5
+    BYTE         = 6
+
+
+class VocabType(Enum):
+    SPM = "SPM"  # SentencePiece LLaMa tokenizer
+    BPE = "BPE"  # BytePair GPT-2 tokenizer
+    WPM = "WPM"  # WordPiece BERT tokenizer
+
+
+#
+# Model File Types
+#
+class ModelFileExtension(Enum):
+    PT          = ".pt"  # torch
+    PTH         = ".pth"  # torch
+    BIN         = ".bin"  # torch
+    SAFETENSORS = ".safetensors"  # safetensors
+    JSON        = ".json"  # transformers/tokenizers
+    MODEL       = ".model"  # sentencepiece
+    GGUF        = ".gguf"  # ggml/llama.cpp
+
+
+#
+# Normalizer Types
+#
+class NormalizerType(Enum):
+    SEQUENCE = "Sequence"
+    NFC      = "NFC"
+    NFD      = "NFD"
+    NFKC     = "NFKC"
+    NFKD     = "NFKD"
+
+
+#
+# Pre-tokenizer Types
+#
+class PreTokenizerType(Enum):
+    SEQUENCE           = "Sequence"
+    BYTE_LEVEL         = "ByteLevel"
+    BERT_PRE_TOKENIZER = "BertPreTokenizer"
+    METASPACE          = "Metaspace"
+
+
+#
+# HF Vocab Files
+#
+HF_TOKENIZER_BPE_FILES = ("config.json", "tokenizer_config.json", "tokenizer.json",)
+HF_TOKENIZER_SPM_FILES = HF_TOKENIZER_BPE_FILES + ("tokenizer.model",)
+
+#
+# Pre-tokenization Regular Expressions
+#
+
+# NOTE: `tokenizers` defaults to OpenAI GPT-2 `ByteLevel` RegEx.
+# The pattern uses perl regex and formatting is arbitrary.
+# https://github.com/openai/gpt-2/blob/master/src/encoder.py#L53
+# https://github.com/huggingface/tokenizers/blob/main/tokenizers/src/pre_tokenizers/byte_level.rs#L40-L42
+
+# These are fallback values if the pre-tokenizer cannot be dynamically discovered at runtime.
+GPT_PRE_TOKENIZER_DEFAULT = ("'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+",)
+
 # Aliases for backward compatibility.
 
 # general
@@ -1065,7 +1134,10 @@ KEY_SSM_TIME_STEP_RANK = Keys.SSM.TIME_STEP_RANK
 
 # tokenization
 KEY_TOKENIZER_MODEL      = Keys.Tokenizer.MODEL
+KEY_TOKENIZER_TYPE       = Keys.Tokenizer.TYPE
+KEY_TOKENIZER_NORM       = Keys.Tokenizer.NORM
 KEY_TOKENIZER_PRE        = Keys.Tokenizer.PRE
+KEY_TOKENIZER_ADDED      = Keys.Tokenizer.ADDED
 KEY_TOKENIZER_LIST       = Keys.Tokenizer.LIST
 KEY_TOKENIZER_TOKEN_TYPE = Keys.Tokenizer.TOKEN_TYPE
 KEY_TOKENIZER_SCORES     = Keys.Tokenizer.SCORES
