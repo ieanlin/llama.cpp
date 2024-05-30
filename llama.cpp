@@ -16394,7 +16394,7 @@ struct llama_context * llama_new_context_with_model(
         if (model->n_gpu_layers > 0) {
             //the second param is data path of prebuit QNN libs provided by Qualcomm
             //can be hardcoded to "/data/local/tmp/" for command line application on Android device
-            ggml_backend_t backend = ggml_backend_qnn_init(model->main_gpu, "/data/data/com.cdeos.kantv/qnnlib/");
+            ggml_backend_t backend = ggml_backend_qnn_init(model->main_gpu, "/data/local/tmp/");
             if (nullptr == backend) {
                 LLAMA_LOG_ERROR("%s: failed to initialize QNN backend\n", __func__);
                 llama_free(ctx);

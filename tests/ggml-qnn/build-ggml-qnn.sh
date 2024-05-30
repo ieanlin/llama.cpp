@@ -2,8 +2,6 @@
 
 set -e
 
-#modify following lines to adapt to local dev envs
-LLAMACPP_ROOT_PATH=~/github/llama.cpp/
 #https://qpm.qualcomm.com/#/main/tools/details/qualcomm_ai_engine_direct
 #https://developer.qualcomm.com/software/hexagon-dsp-sdk/tools
 QNN_SDK_PATH=/opt/qcom/aistack/qnn/2.20.0.240223/
@@ -11,14 +9,11 @@ QNN_SDK_PATH=/opt/qcom/aistack/qnn/2.20.0.240223/
 
 ANDROID_NDK=`pwd`/android-ndk-r26c
 ANDROID_PLATFORM=android-34
-#BUILD_TYPE=release
-BUILD_TYPE=debug
 TARGET=ggml-qnn-test
 
 
 function dump_vars()
 {
-    echo -e "LLAMACPP_ROOT_PATH:   ${LLAMACPP_ROOT_PATH}"
     echo -e "ANDROID_NDK:          ${ANDROID_NDK}"
     echo -e "QNN_SDK_PATH:         ${QNN_SDK_PATH}"
 }
@@ -27,6 +22,15 @@ function dump_vars()
 function show_pwd()
 {
     echo -e "current working path:$(pwd)\n"
+}
+
+
+function check_qnn_sdk()
+{
+    if [ ! -d ${QNN_SDK_PATH} ]; then
+        echo -e "QNN_SDK_PATH ${QNN_SDK_PATH} not exist, pls check...\n"
+        exit 1
+    fi
 }
 
 
@@ -64,7 +68,7 @@ function check_and_download_ndk()
 
 function build_arm64
 {
-    cmake -H. -B./out/arm64-v8a -DPROJECT_ROOT_PATH=${LLAMACPP_ROOT_PATH} -DTARGET_NAME=${TARGET} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=${ANDROID_PLATFORM} -DANDROID_NDK=${ANDROID_NDK}  -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DQNN_SDK_PATH=${QNN_SDK_PATH}
+    cmake -H. -B./out/arm64-v8a -DTARGET_NAME=${TARGET} -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=${ANDROID_PLATFORM} -DANDROID_NDK=${ANDROID_NDK}  -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DQNN_SDK_PATH=${QNN_SDK_PATH}
 
     cd ./out/arm64-v8a
     make
@@ -83,10 +87,9 @@ function remove_temp_dir()
     fi
 }
 
-
-
 show_pwd
 check_and_download_ndk
+check_qnn_sdk
 dump_vars
 remove_temp_dir
 build_arm64
